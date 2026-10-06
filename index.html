@@ -202,9 +202,6 @@
                     <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mt-1" id="key-page-subtitle">Danh sách mã Key cấp quyền ứng dụng di động</p>
                 </div>
                 <div class="flex space-x-3" id="admin-key-actions">
-                    <button onclick="extendAllKeys()" class="bg-amber-600 text-white px-6 py-3.5 rounded-2xl font-bold shadow-md shadow-amber-200 hover:bg-amber-700 transition-all uppercase tracking-widest text-xs">
-                        <i class="fas fa-calendar-check mr-2"></i>Gia hạn tất cả (2027)
-                    </button>
                     <button onclick="openModal('modal-key')" class="bg-emerald-700 text-white px-6 py-3.5 rounded-2xl font-bold shadow-md shadow-emerald-200 hover:bg-emerald-800 transition-all uppercase tracking-widest text-xs">
                         <i class="fas fa-plus mr-2"></i>Tạo mã lẻ
                     </button>
@@ -349,7 +346,7 @@
                     <label for="key-id" class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Mã kích hoạt (9 ký tự)</label>
                     <div class="flex space-x-3">
                         <input type="text" id="key-id" maxlength="9" class="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-600 outline-none uppercase font-mono font-black text-emerald-700 text-xl tracking-wider">
-                        <button onclick="generateRandomKey()" class="bg-slate-200 px-5 rounded-2xl hover:bg-slate-300 transition-all font-bold text-slate-700 uppercase text-[10px] tracking-widest">Tạo mã 9 ký tự</button>
+                        <button id="btn-generate-key" onclick="generateRandomKey()" class="bg-slate-200 px-5 rounded-2xl hover:bg-slate-300 transition-all font-bold text-slate-700 uppercase text-[10px] tracking-widest">Tạo mã 9 ký tự</button>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
@@ -540,6 +537,9 @@
 
         // Navigation
         window.showPage = (page) => {
+            if (currentUser && currentUser.role !== 'admin' && page === 'dashboard') {
+                page = 'keys';
+            }
             document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
             document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
             const targetPage = document.getElementById('page-' + page);
@@ -566,16 +566,19 @@
             document.getElementById('logged-user-name').innerText = currentUser.fullName || currentUser.username;
             document.getElementById('logged-user-unit').innerText = currentUser.unit || "Tất cả đơn vị";
 
+            const navDashboard = document.getElementById('nav-dashboard');
             const navAccounts = document.getElementById('nav-accounts');
             const keyActions = document.getElementById('admin-key-actions');
             const keySubtitle = document.getElementById('key-page-subtitle');
 
             if (currentUser.role === 'admin') {
-                navAccounts.classList.remove('hidden');
+                if (navDashboard) navDashboard.classList.remove('hidden');
+                if (navAccounts) navAccounts.classList.remove('hidden');
                 if (keyActions) keyActions.classList.remove('hidden');
                 if (keySubtitle) keySubtitle.innerText = "Danh sách mã Key cấp quyền ứng dụng di động";
             } else {
-                navAccounts.classList.add('hidden');
+                if (navDashboard) navDashboard.classList.add('hidden');
+                if (navAccounts) navAccounts.classList.add('hidden');
                 if (keyActions) keyActions.classList.add('hidden');
                 if (keySubtitle) keySubtitle.innerText = `Danh sách Mã Key gán cho tài khoản: ${currentUser.username} (${currentUser.unit})`;
             }
@@ -639,7 +642,7 @@
                     document.getElementById('login-overlay').classList.add('hidden');
                     errEl.classList.add('hidden');
                     applyUserPermissions();
-                    window.showPage('dashboard');
+                    window.showPage(currentUser.role === 'admin' ? 'dashboard' : 'keys');
                 } else {
                     errEl.innerText = "TÊN ĐĂNG NHẬP HOẶC MẬT KHẨU KHÔNG CHÍNH XÁC!";
                     errEl.classList.remove('hidden');
@@ -935,10 +938,19 @@
                 document.getElementById('modal-title').innerText = "Cập nhật mã Key " + id;
                 document.getElementById('key-id').value = id;
                 document.getElementById('key-id').readOnly = true;
+
+                // Hide "Tạo mã 9 ký tự" when editing an existing key
+                const btnGen = document.getElementById('btn-generate-key');
+                if (btnGen) btnGen.classList.add('hidden');
+
                 document.getElementById('key-perms').value = i.permissions || "FULL";
 
                 const expiryInput = document.getElementById('key-expiry');
-                expiryInput.value = new Date(i.expiryTimestamp).toISOString().split('T')[0];
+                if (i.expiryTimestamp) {
+                    expiryInput.value = new Date(i.expiryTimestamp).toISOString().split('T')[0];
+                } else {
+                    expiryInput.value = '';
+                }
 
                 // Sub-accounts CANNOT edit key expiry date
                 if (currentUser && currentUser.role !== 'admin') {
@@ -1430,11 +1442,28 @@
             } else { container.innerHTML = '<p class="text-center py-20 text-slate-300 font-bold uppercase italic tracking-widest">Tính năng đang cập nhật chi tiết...</p>'; }
         }
 
-        window.openModal = (id) => { document.getElementById(id).classList.remove('hidden'); };
+        window.openModal = (id) => {
+            document.getElementById(id).classList.remove('hidden');
+            if (id === 'modal-key') {
+                const btnGen = document.getElementById('btn-generate-key');
+                if (btnGen) btnGen.classList.remove('hidden');
+                const keyId = document.getElementById('key-id');
+                if (keyId) keyId.readOnly = false;
+            }
+        };
         window.closeModal = (id) => {
             document.getElementById(id).classList.add('hidden');
-            const keyId = document.getElementById('key-id');
-            if (keyId) keyId.readOnly = false;
+            if (id === 'modal-key') {
+                const keyId = document.getElementById('key-id');
+                if (keyId) keyId.readOnly = false;
+                const btnGen = document.getElementById('btn-generate-key');
+                if (btnGen) btnGen.classList.remove('hidden');
+                const expiryInput = document.getElementById('key-expiry');
+                if (expiryInput) {
+                    expiryInput.disabled = false;
+                    expiryInput.classList.remove('opacity-60', 'cursor-not-allowed');
+                }
+            }
         };
 
         // Data Deletion & Cleanup Functions
@@ -1569,7 +1598,7 @@
                 currentUser = JSON.parse(savedSession);
                 document.getElementById('login-overlay').classList.add('hidden');
                 applyUserPermissions();
-                window.showPage('dashboard');
+                window.showPage(currentUser.role === 'admin' ? 'dashboard' : 'keys');
             } catch(e) {
                 localStorage.removeItem('admin_user_session');
             }

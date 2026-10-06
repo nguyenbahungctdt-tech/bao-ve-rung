@@ -106,7 +106,14 @@
                     <p class="text-[10px] font-bold text-emerald-300 uppercase" id="logged-user-unit">Tất cả đơn vị</p>
                     <p class="text-sm font-black truncate text-white" id="logged-user-name">Người quản trị</p>
                 </div>
-                <button onclick="logout()" class="w-10 h-10 bg-red-500/20 hover:bg-red-500 text-white rounded-xl transition-all shrink-0 flex items-center justify-center" title="Đăng xuất"><i class="fas fa-power-off text-xs"></i></button>
+                <div class="flex items-center space-x-1 shrink-0">
+                    <button onclick="openChangePasswordModal()" class="w-10 h-10 bg-emerald-500/20 hover:bg-emerald-500 text-white rounded-xl transition-all flex items-center justify-center" title="Đổi mật khẩu">
+                        <i class="fas fa-key text-xs"></i>
+                    </button>
+                    <button onclick="logout()" class="w-10 h-10 bg-red-500/20 hover:bg-red-500 text-white rounded-xl transition-all flex items-center justify-center" title="Đăng xuất">
+                        <i class="fas fa-power-off text-xs"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </aside>
@@ -506,6 +513,34 @@
         </div>
     </div>
 
+    <!-- Modal: Change Password -->
+    <div id="modal-change-password" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[1100] hidden">
+        <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md mx-4 overflow-hidden border border-white/20">
+            <div class="p-6 gradient-header text-white">
+                <h2 class="text-2xl font-black tracking-tight">Đổi mật khẩu tài khoản</h2>
+                <p class="text-emerald-100 opacity-80 text-xs mt-0.5 font-medium" id="change-pass-user-label">Tài khoản: ---</p>
+            </div>
+            <div class="p-8 space-y-4">
+                <div>
+                    <label for="change-pass-current" class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Mật khẩu hiện tại</label>
+                    <input type="password" id="change-pass-current" placeholder="Nhập mật khẩu hiện tại" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-600 outline-none font-bold text-sm">
+                </div>
+                <div>
+                    <label for="change-pass-new" class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Mật khẩu mới</label>
+                    <input type="password" id="change-pass-new" placeholder="Nhập mật khẩu mới" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-600 outline-none font-bold text-sm">
+                </div>
+                <div>
+                    <label for="change-pass-confirm" class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Xác nhận mật khẩu mới</label>
+                    <input type="password" id="change-pass-confirm" placeholder="Nhập lại mật khẩu mới" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-600 outline-none font-bold text-sm">
+                </div>
+            </div>
+            <div class="p-6 bg-slate-50 flex space-x-3">
+                <button onclick="closeModal('modal-change-password')" class="flex-1 p-4 text-slate-400 font-bold hover:text-slate-600 transition uppercase tracking-widest text-xs">Hủy bỏ</button>
+                <button onclick="submitChangePassword()" class="flex-1 bg-emerald-700 text-white p-4 rounded-2xl font-black shadow-lg shadow-emerald-200 hover:bg-emerald-800 transition uppercase tracking-widest text-xs">Cập nhật mật khẩu</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDK v10 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -658,6 +693,48 @@
             localStorage.removeItem('admin_user_session');
             localStorage.removeItem('admin_logged_in');
             location.reload();
+        };
+
+        window.openChangePasswordModal = () => {
+            if (!currentUser) return;
+            document.getElementById('change-pass-user-label').innerText = `Tài khoản: ${currentUser.username}`;
+            document.getElementById('change-pass-current').value = '';
+            document.getElementById('change-pass-new').value = '';
+            document.getElementById('change-pass-confirm').value = '';
+            window.openModal('modal-change-password');
+        };
+
+        window.submitChangePassword = async () => {
+            if (!currentUser) return;
+            const currentP = document.getElementById('change-pass-current').value;
+            const newP = document.getElementById('change-pass-new').value;
+            const confirmP = document.getElementById('change-pass-confirm').value;
+
+            if (!currentP || !newP || !confirmP) {
+                return alert("Vui lòng điền đầy đủ các thông tin!");
+            }
+
+            if (currentP !== currentUser.password) {
+                return alert("Mật khẩu hiện tại không chính xác!");
+            }
+
+            if (newP.length < 6) {
+                return alert("Mật khẩu mới phải có ít nhất 6 ký tự!");
+            }
+
+            if (newP !== confirmP) {
+                return alert("Mật khẩu mới và Nhập lại mật khẩu không khớp nhau!");
+            }
+
+            try {
+                await update(ref(db, `Accounts/${currentUser.username}`), { password: newP });
+                currentUser.password = newP;
+                localStorage.setItem('admin_user_session', JSON.stringify(currentUser));
+                alert("Đổi mật khẩu thành công!");
+                window.closeModal('modal-change-password');
+            } catch (err) {
+                alert("Lỗi khi đổi mật khẩu: " + err.message);
+            }
         };
 
         // Account Management Page Functions
